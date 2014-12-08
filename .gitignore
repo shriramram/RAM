@@ -18,3 +18,435 @@ local.properties
 # Eclipse project files
 .classpath
 .project
+..............................................................................
+//web-client class
+package com.exceptionaire.niajae.webapi;
+
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URLEncoder;
+import java.util.ArrayList;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.protocol.HTTP;
+
+import android.util.Log;
+
+public class WebClient {
+
+    private static final int GET = 0;
+    private static final int POST = 1;
+	private ArrayList <NameValuePair> params;
+    private ArrayList <NameValuePair> headers;
+
+    private String url;
+
+    private int responseCode;
+    private String message;
+
+    private String response;
+
+    public String getResponse() {
+        return response;
+    }
+
+    public String getErrorMessage() {
+        return message;
+    }
+
+    public int getResponseCode() {
+        return responseCode;
+    }
+
+    public WebClient(String url)
+    {
+        this.url = url;
+        params = new ArrayList<NameValuePair>();
+        headers = new ArrayList<NameValuePair>();
+    }
+
+    public void AddParam(String name, String value)
+    {
+        params.add(new BasicNameValuePair(name, value));
+    }
+
+    public void AddHeader(String name, String value)
+    {
+        headers.add(new BasicNameValuePair(name, value));
+    }
+    public void ClearParam()
+    {
+      this.params.clear();
+    }
+    public void Execute(int method) throws Exception
+    {
+        switch(method) {
+            case GET:
+            {
+                //add parameters
+                String combinedParams = "";
+                if(!params.isEmpty()){
+                    combinedParams += "?";
+                    for(NameValuePair p : params)
+                    {
+                        String paramString = p.getName() + "=" + URLEncoder.encode(p.getValue(),"UTF-8");
+                        if(combinedParams.length() > 1)
+                        {
+                            combinedParams  +=  "&" + paramString;
+                        }
+                        else
+                        {
+                            combinedParams += paramString;
+                        }
+                    }
+                }
+                Log.v("Url:", url +combinedParams );
+                HttpGet request = new HttpGet(url + combinedParams);
+
+                //add headers
+                for(NameValuePair h : headers)
+                {
+                    request.addHeader(h.getName(), h.getValue());
+                }
+
+                executeRequest(request, url);
+                break;
+            }
+            case POST:
+            {
+                HttpPost request = new HttpPost(url);
+
+                //add headers
+                for(NameValuePair h : headers)
+                {
+                    request.addHeader(h.getName(), h.getValue());
+                }
+
+                if(!params.isEmpty()){
+                    request.setEntity(new UrlEncodedFormEntity(params, HTTP.UTF_8));
+                }
+                Log.v("Url:", url + params );
+                executeRequest(request, url);
+                break;
+            }
+        }
+    }
+
+    private void executeRequest(HttpUriRequest request, String url)
+    {
+        HttpClient client = new DefaultHttpClient();
+
+        HttpResponse httpResponse;
+
+        try {
+            httpResponse = client.execute(request);
+            responseCode = httpResponse.getStatusLine().getStatusCode();
+            message = httpResponse.getStatusLine().getReasonPhrase();
+
+            HttpEntity entity = httpResponse.getEntity();
+
+            if (entity != null) {
+
+                InputStream instream = entity.getContent();
+                response = convertStreamToString(instream);
+              //  Log.v("Response:", response);
+                // Closing the input stream will trigger connection release
+                instream.close();
+            }
+
+        } catch (ClientProtocolException e)  {
+            client.getConnectionManager().shutdown();
+            e.printStackTrace();
+        } catch (IOException e) {
+            client.getConnectionManager().shutdown();
+            e.printStackTrace();
+        }
+    }
+
+    private static String convertStreamToString(InputStream is) {
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        StringBuilder sb = new StringBuilder();
+
+        String line = null;
+        try {
+            while ((line = reader.readLine()) != null) {
+                sb.append(line + "\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                is.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return sb.toString();
+    }
+}
+..............................................................................
+//web-url class
+package com.exceptionaire.niajae.webapi;
+
+public class WebUrl {
+	public static final int GO_TO_HOME = 9999;
+	public static final String WebService;
+
+	static {
+
+		WebService = "http://exceptionaire.co/livright/webservice.php";
+
+	}
+
+}
+..............................................................................
+//web-api class
+package com.exceptionaire.niajae.webapi;
+
+import org.json.JSONObject;
+
+import android.content.Context;
+
+import com.exceptionaire.niajae.setting.LocalSettings;
+import com.niajae.DTO.SearchVideoDetailsDTO;
+
+public class WebApi {
+
+	public static boolean UpdateFlag;
+	public static Context _context;
+	static WebClient mClient = new WebClient(WebUrl.WebService);
+//	private static final String EMAIL_PATTERN = "^[_A-Za-z0-9-\\+]+(\\.[_A-Za-z0-9-]+)*@"
+//			+ "[A-Za-z0-9-]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$";
+//	private static Pattern pattern;
+//	private static Matcher matcher;
+	static {
+		UpdateFlag = false;
+	}
+	
+	
+	public static void getRegistersLink() {
+		mClient.ClearParam();
+		mClient.AddParam("task", "getregisterlinks");
+
+		try {
+			mClient.Execute(0);
+			String response = mClient.getResponse();
+			if (!"".equalsIgnoreCase(response) && response != null) {
+				JSONObject localJSONObject = (JSONObject) new JSONObject(
+						response).getJSONArray("getregisterlinks").get(0);
+				if (localJSONObject.has("registerUserlink")) {
+					LocalSettings.register_url_user = localJSONObject.getString("registerUserlink");
+				}
+				if (localJSONObject.has("registerInstructorlink")) {
+					LocalSettings.register_url_instructor = localJSONObject.getString("registerInstructorlink");
+				}
+			}
+
+		}
+
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	// Login API
+	public static String forgotPwd(String email_id) {
+		//http://exceptionaire.co/livright/webservice.php?task=forgot_pwd&email=swapnil.t@exceptionaire.co
+		//{"forgot_pwd":[{"result":1,"message":"The reset password link has been sent to your email address"}]}
+		String message = "";
+		mClient.ClearParam();
+		mClient.AddParam("task", "forgot_pwd");
+		mClient.AddParam("email",email_id );
+		try {
+			mClient.Execute(0);
+			String response="";
+			response = mClient.getResponse();
+			if (!"".equalsIgnoreCase(response) && response != null) {
+
+				System.out.println("succes_msg reponse----" + response);
+				JSONObject localJSONObject = (JSONObject) new JSONObject(response).getJSONArray("forgot_pwd").get(0);
+				if (localJSONObject.has("message")) {
+					message = localJSONObject.getString("message");
+					System.out.println("message"+message);
+				}
+			}
+
+		}
+
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+		return message;
+	}
+
+	public static SearchVideoDetailsDTO fetchVideoDetails(String video_detailFetchID) {
+		
+		SearchVideoDetailsDTO videoDetailsDTO = new SearchVideoDetailsDTO();
+		mClient.ClearParam();
+		mClient.AddParam("task", "videodetails");
+		mClient.AddParam("videoid",video_detailFetchID );
+		try {
+			mClient.Execute(0);
+			String response="";
+			response = mClient.getResponse();
+			if (!"".equalsIgnoreCase(response) && response != null) {
+
+				System.out.println("succes_msg reponse----" + response);
+				JSONObject localJSONObject = (JSONObject) new JSONObject(response).getJSONArray("videodetails").get(0);
+				if (localJSONObject.has("video_name")) {
+					videoDetailsDTO.video_name = localJSONObject.getString("video_name");
+				}
+				if (localJSONObject.has("video_duration")) {
+					videoDetailsDTO.video_duration = localJSONObject.getString("video_duration");
+				}
+				if (localJSONObject.has("video_desc")) {
+					videoDetailsDTO.video_desc = localJSONObject.getString("video_desc");
+				}
+			}
+
+		}
+
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+		return videoDetailsDTO;
+	}
+	
+	
+
+}
+..............................................................................
+//for validation filters
+
+InputFilter assigntxt_Filter = new InputFilter() {
+		boolean canEnterSpace = false;
+
+		public CharSequence filter(CharSequence source, int start, int end,
+				Spanned dest, int dstart, int dend) {
+
+			if (Fname_editTxt.getText().toString().equals("")) {
+				canEnterSpace = false;
+			}
+
+			StringBuilder builder = new StringBuilder();
+
+			for (int i = start; i < end; i++) {
+				char currentChar = source.charAt(i);
+
+				if (Character.isLetter(currentChar) || currentChar == '_') {
+					builder.append(currentChar);
+					canEnterSpace = true;
+				}
+
+				if (Character.isWhitespace(currentChar) && canEnterSpace) {
+					builder.append(currentChar);
+				}
+
+			}
+			return builder.toString();
+		}
+
+	};
+	InputFilter lnametxt_Filter = new InputFilter() {
+		boolean canEnterSpace = false;
+
+		public CharSequence filter(CharSequence source, int start, int end,
+				Spanned dest, int dstart, int dend) {
+
+			if (Lname_editTxt.getText().toString().equals("")) {
+				canEnterSpace = false;
+			}
+
+			StringBuilder builder = new StringBuilder();
+
+			for (int i = start; i < end; i++) {
+				char currentChar = source.charAt(i);
+
+				if (Character.isLetter(currentChar) || currentChar == '_') {
+					builder.append(currentChar);
+					canEnterSpace = true;
+				}
+
+				if (Character.isWhitespace(currentChar) && canEnterSpace) {
+					builder.append(currentChar);
+				}
+
+			}
+			return builder.toString();
+		}
+
+	};
+
+	InputFilter emailIDtxt_Filter = new InputFilter() {
+		boolean canEnterSpace = false;
+
+		public CharSequence filter(CharSequence source, int start, int end,
+				Spanned dest, int dstart, int dend) {
+
+			canEnterSpace = false;
+
+			StringBuilder builder = new StringBuilder();
+
+			for (int i = start; i < end; i++) {
+				char currentChar = source.charAt(i);
+
+				if (Character.isLetterOrDigit(currentChar)
+						|| currentChar == '_'
+						|| specialChars.contains(source.subSequence(i, 1))) {
+					builder.append(currentChar);
+					canEnterSpace = true;
+				}
+
+				if (Character.isWhitespace(currentChar) && canEnterSpace) {
+					builder.append(currentChar);
+				}
+
+			}
+			return builder.toString();
+		}
+
+	};
+	InputFilter cmpnytxt_Filter = new InputFilter() {
+		boolean canEnterSpace = false;
+
+		public CharSequence filter(CharSequence source, int start, int end,
+				Spanned dest, int dstart, int dend) {
+
+			if (cmpynm_editTxt.getText().toString().equals("")) {
+				canEnterSpace = false;
+			}
+
+			StringBuilder builder = new StringBuilder();
+
+			for (int i = start; i < end; i++) {
+				char currentChar = source.charAt(i);
+				if (Character.isLetterOrDigit(currentChar)
+						|| currentChar == '_'
+						|| specialChars.contains(source.subSequence(i, 1))) {
+					builder.append(currentChar);
+					canEnterSpace = true;
+				}
+
+				if (Character.isWhitespace(currentChar) && canEnterSpace) {
+					builder.append(currentChar);
+				}
+
+			}
+			return builder.toString();
+		}
+
+	};
